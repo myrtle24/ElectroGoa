@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Store with Cart & Dummy Payment</title>
+<title>Store with Razorpay Test Payment</title>
 
 <!-- GA4 -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-CVQWXDXF2G"></script>
@@ -12,6 +12,9 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', 'G-CVQWXDXF2G');
 </script>
+
+<!-- Razorpay Checkout -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
 <style>
 body { font-family: Arial; text-align: center; }
@@ -24,21 +27,11 @@ body { font-family: Arial; text-align: center; }
   vertical-align: top;
 }
 button {
-  padding: 6px 10px;
+  padding: 8px;
   background: green;
   color: white;
   border: none;
   cursor: pointer;
-  margin-top: 5px;
-}
-#cart { background: #f9f9f9; }
-#paymentBox {
-  display: none;
-  border: 2px solid black;
-  padding: 20px;
-  width: 300px;
-  margin: auto;
-  background: #eee;
 }
 </style>
 </head>
@@ -47,7 +40,6 @@ button {
 
 <h2>My Online Store</h2>
 
-<!-- PRODUCTS -->
 <div class="product">
 <h3>Smart Watch</h3>
 <p>₹2500</p>
@@ -77,23 +69,7 @@ button {
 <h3>Shopping Cart</h3>
 <ul id="cartItems"></ul>
 <p><strong>Total: ₹<span id="total">0</span></strong></p>
-<button onclick="openPayment()">Buy Now</button>
-</div>
-
-<!-- PAYMENT GATEWAY -->
-<div id="paymentBox">
-<h3>Dummy Payment Gateway</h3>
-<p>Total Amount: ₹<span id="payAmount"></span></p>
-
-<input type="text" id="cardNumber" placeholder="Enter Card Number"><br><br>
-
-<button onclick="processPayment()">Pay</button>
-<button onclick="closePayment()">Cancel</button>
-
-<p><small>
-Use 1111 1111 1111 1111 → Success<br>
-Use 2222 2222 2222 2222 → Failed
-</small></p>
+<button onclick="payNow()">Buy Now</button>
 </div>
 
 <script>
@@ -103,66 +79,75 @@ let totalAmount = 0;
 
 function addToCart(id, name, price) {
 
-  cart.push({id, name, price});
+  cart.push({item_id: id, item_name: name, price: price});
   totalAmount += price;
 
-  document.getElementById("cartItems").innerHTML += 
-    "<li>" + name + " - ₹" + price + "</li>";
+  document.getElementById("cartItems").innerHTML +=
+    "<li>"+name+" - ₹"+price+"</li>";
 
   document.getElementById("total").innerText = totalAmount;
 
   gtag('event', 'add_to_cart', {
     currency: 'INR',
     value: price,
-    items: [{ item_id: id, item_name: name, price: price, quantity: 1 }]
+    items: [{
+      item_id: id,
+      item_name: name,
+      price: price,
+      quantity: 1
+    }]
   });
 }
 
-function openPayment() {
-  if(cart.length === 0){
+function payNow() {
+
+  if(totalAmount === 0){
     alert("Cart is empty!");
     return;
   }
-  document.getElementById("payAmount").innerText = totalAmount;
-  document.getElementById("paymentBox").style.display = "block";
-}
 
-function closePayment() {
-  document.getElementById("paymentBox").style.display = "none";
-}
+  var options = {
+    "key": "rzp_test_xxxxxxxxx",  // 🔴 Replace with your Razorpay TEST Key
+    "amount": totalAmount * 100,  // amount in paise
+    "currency": "INR",
+    "name": "My Online Store",
+    "description": "Test Transaction",
+    "handler": function (response){
 
-function processPayment() {
+        alert("Payment Successful!");
 
-  let card = document.getElementById("cardNumber").value.trim();
+        gtag('event', 'purchase', {
+          transaction_id: response.razorpay_payment_id,
+          value: totalAmount,
+          currency: "INR",
+          items: cart
+        });
 
-  if(card === "1111 1111 1111 1111") {
+        cart = [];
+        totalAmount = 0;
+        document.getElementById("cartItems").innerHTML = "";
+        document.getElementById("total").innerText = "0";
+    },
+    "prefill": {
+        "name": "Test User",
+        "email": "test@example.com",
+        "contact": "9999999999"
+    },
+    "theme": {
+        "color": "#3399cc"
+    }
+  };
 
-    alert("Payment Successful!");
+  var rzp1 = new Razorpay(options);
 
-    gtag('event', 'purchase', {
-      transaction_id: "T" + Date.now(),
-      value: totalAmount,
-      currency: "INR",
-      items: cart
-    });
+  rzp1.on('payment.failed', function (response){
+        alert("Payment Failed!");
+        gtag('event', 'payment_failed', {
+          value: totalAmount
+        });
+  });
 
-    cart = [];
-    totalAmount = 0;
-    document.getElementById("cartItems").innerHTML = "";
-    document.getElementById("total").innerText = "0";
-    closePayment();
-
-  } else if(card === "2222 2222 2222 2222") {
-
-    alert("Payment Failed!");
-
-    gtag('event', 'payment_failed', {
-      value: totalAmount
-    });
-
-  } else {
-    alert("Invalid Card! Payment Failed.");
-  }
+  rzp1.open();
 }
 
 </script>
